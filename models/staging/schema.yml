@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: stg_il_test_client_accounts
+    description: >
+      Staging model for client accounts sourced from the raw
+      il_test_client_accounts table. One row per client account.
+      Applies light cleaning: whitespace trimming on strings, safe
+      empty-string-to-NULL coercion on date/timestamp columns, and
+      explicit type casts. No joins or business logic.
+    config:
+      materialized: view
+      tags:
+        - staging
+        - client_accounts
+
+    columns:
+
+      - name: account_id
+        description: Unique identifier for the client account (primary key).
+        tests:
+          - not_null
+          - unique
+
+      - name: client_name
+        description: Full name of the client or organisation.
+        tests:
+          - not_null
+
+      - name: client_type
+        description: Classification of the client (e.g. Individual, Institutional, Corporate).
+        tests:
+          - not_null
+
+      - name: segment
+        description: Market or product segment the client belongs to.
+
+      - name: email
+        description: Primary email address for the client account.
+        tests:
+          - not_null
+
+      - name: phone
+        description: Primary phone number for the client account.
+
+      - name: account_status
+        description: Current status of the account (e.g. Active, Inactive, Suspended, Closed).
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Active', 'Inactive', 'Suspended', 'Closed', 'Pending']
+
+      - name: account_type
+        description: Type of account (e.g. Standard, Premium, Enterprise).
+
+      - name: industry
+        description: Industry vertical the client operates in.
+
+      - name: region
+        description: Geographic region associated with the client account.
+
+      - name: country
+        description: Country of the client account.
+
+      - name: aum_usd
+        description: Assets under management in US dollars, cast to DECIMAL(18,2).
+        tests:
+          - not_null
+
+      - name: revenue_usd
+        description: Revenue attributed to this account in US dollars, cast to DECIMAL(18,2).
+
+      - name: ltv
+        description: Estimated lifetime value of the client account in US dollars, cast to DECIMAL(18,2).
+
+      - name: acquisition_cost
+        description: Cost incurred to acquire this client account in US dollars, cast to DECIMAL(18,2).
+
+      - name: acquisition_date
+        description: Date the client account was acquired. Empty strings coerced to NULL. Cast to DATE.
+
+      - name: first_purchase_date
+        description: Date of the client's first purchase or transaction. Empty strings coerced to NULL. Cast to DATE.
+
+      - name: last_activity_date
+        description: Date of the most recent activity on the account. Empty strings coerced to NULL. Cast to DATE.
+
+      - name: risk_score
+        description: Numeric risk score assigned to the client account, cast to DECIMAL(10,4).
+
+      - name: source_system
+        description: Name of the upstream system that originated this record. Trimmed of whitespace.
+
+      - name: loaded_at
+        description: Timestamp when the record was loaded into the raw table. Empty strings coerced to NULL. Cast to TIMESTAMP.
+        tests:
+          - not_null

@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: database_128245155604
+    database: workspace-database
+    schema: database_128245155604
+    description: >
+      Raw data tables ingested into the workspace Redshift database.
+      Source schema: database_128245155604.
+    tables:
+      - name: il_test_client_accounts
+        description: >
+          Raw client accounts data loaded from il_test_client_accounts.csv.
+          Contains one row per client account with identifiers, contact info,
+          financial metrics, lifecycle dates, and risk scoring.

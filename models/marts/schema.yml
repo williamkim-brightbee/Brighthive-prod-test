@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: accounts_with_risk_level
+    description: >-
+      Enriches raw account records with a derived risk classification
+      (high-risk / watch-list / standard) based on outstanding balance
+      and days-delinquent thresholds defined in risk policy RISK-POL-014.
+      Intended for use by credit, collections, and finance teams to
+      prioritise outreach and provisioning decisions.
+    config:
+      tags:
+        - risk
+        - accounts
+        - RISK-POL-014
+    columns:
+      - name: account_id
+        description: Unique identifier for each account.
+        tests:
+          - not_null
+          - unique
+
+      - name: customer_name
+        description: Full name of the account holder.
+        tests:
+          - not_null
+
+      - name: outstanding_balance
+        description: Current outstanding balance on the account (USD).
+        tests:
+          - not_null
+
+      - name: days_delinquent
+        description: Number of days the account has been delinquent.
+        tests:
+          - not_null
+
+      - name: timestamp
+        description: Timestamp of the last record update.
+        tests:
+          - not_null
+
+      - name: risk_level
+        description: >-
+          Derived risk classification per RISK-POL-014:
+            high-risk  = outstanding_balance > 50000 AND days_delinquent > 60
+            watch-list = exactly one of the two conditions is met
+            standard   = neither condition is met
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['high-risk', 'watch-list', 'standard']

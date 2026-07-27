@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: database_128245155604
+    database: "workspace-database"
+    schema: database_128245155604
+    description: >-
+      Raw account data sourced from the workspace Redshift database.
+      Contains unstructured account records used for risk classification.
+    tables:
+      - name: accounts_unstructured_test
+        description: >-
+          Raw accounts table containing balance and delinquency data.
+          Used as the source for the accounts_with_risk_level mart model
+          under risk policy RISK-POL-014.
+        columns:
+          - name: account_id
+            description: Unique identifier for each account.
+          - name: customer_name
+            description: Full name of the account holder.
+          - name: outstanding_balance
+            description: Current outstanding balance on the account (USD).
+          - name: days_delinquent
+            description: Number of days the account has been delinquent.
+          - name: timestamp
+            description: Timestamp of the last record update.

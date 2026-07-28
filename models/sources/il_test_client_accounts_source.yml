@@ -1,0 +1,71 @@
+version: 2
+
+sources:
+  - name: il_test_client_accounts_src
+    database: "workspace-database"
+    schema: database_128245155604
+    description: >
+      Raw client account records for the IL test dataset sourced from the
+      workspace Redshift database. Contains account identity, classification,
+      financial, and operational fields used for downstream staging and
+      analytical models.
+    tables:
+      - name: il_test_client_accounts
+        description: >
+          Raw client accounts table. All columns are stored as VARCHAR and
+          require type casting, normalisation, and null-handling in the
+          staging layer before analytical use.
+        columns:
+          - name: account_id
+            description: >
+              Unique account identifier in the format LC-ACC-XXXXX.
+              Primary key for this table.
+
+          - name: account_name
+            description: >
+              Legal or trading name of the client account.
+              May contain leading/trailing whitespace in the raw source.
+
+          - name: account_type
+            description: >
+              Classification of the account. Raw values use inconsistent
+              casing (e.g., Municipal, Corporate, INSTITUTIONAL, Institutional).
+              Normalised to title-case in the staging model.
+
+          - name: relationship_manager
+            description: >
+              Name of the assigned relationship manager. May be NULL or the
+              sentinel string 'TBD', both of which are treated as unknown
+              in the staging model.
+
+          - name: state
+            description: >
+              US state abbreviation for the account's primary location.
+              May be NULL or contain invalid codes (e.g., 'ZZ').
+
+          - name: aum_usd
+            description: >
+              Assets under management in USD, stored as a numeric string.
+              May be 'N/A' or NULL; cast to DECIMAL(18,2) in staging with
+              non-numeric values coerced to NULL.
+
+          - name: onboarded_date
+            description: >
+              Date the account was onboarded, stored as MM/DD/YYYY string.
+              May be NULL; cast to DATE in staging.
+
+          - name: status
+            description: >
+              Current operational status of the account.
+              Known values: Active, Closed, Dormant.
+
+          - name: sector_focus
+            description: >
+              Primary sector the account operates in.
+              Known values: Public Finance, Equity Capital Markets,
+              Asset Management.
+
+          - name: timestamp
+            description: >
+              ISO 8601 timestamp string indicating when the record was
+              last written to the source system. Cast to TIMESTAMP in staging.

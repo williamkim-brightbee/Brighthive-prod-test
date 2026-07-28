@@ -1,0 +1,95 @@
+version: 2
+
+models:
+  - name: stg_il_test_client_accounts
+    description: >
+      Staged and cleaned version of the raw il_test_client_accounts source table.
+      Applies TRIM to string fields, normalises account_type casing to title-case,
+      coerces 'TBD' and blank relationship_manager values to NULL, safely casts
+      aum_usd to DECIMAL(18,2) (treating 'N/A' as NULL), parses onboarded_date
+      from MM/DD/YYYY to DATE, and casts the ISO 8601 timestamp string to TIMESTAMP.
+      One row per account_id. Materialised as a view.
+    config:
+      tags:
+        - staging
+        - accounts
+        - il_test
+    columns:
+
+      - name: account_id
+        description: >
+          Unique account identifier in the format LC-ACC-XXXXX.
+          Primary key for this staging model.
+        tests:
+          - not_null
+          - unique
+
+      - name: account_name
+        description: >
+          Legal or trading name of the client account, with leading/trailing
+          whitespace removed.
+        tests:
+          - not_null
+
+      - name: account_type
+        description: >
+          Account classification normalised to title-case.
+          Raw source values (Municipal, Corporate, INSTITUTIONAL, Institutional)
+          are all mapped to their title-case equivalents.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Municipal
+                - Corporate
+                - Institutional
+
+      - name: relationship_manager
+        description: >
+          Name of the assigned relationship manager. NULL when the raw value
+          was NULL, blank, or the sentinel string 'TBD'.
+
+      - name: state
+        description: >
+          US state abbreviation for the account's primary location.
+          NULL when the raw value was NULL or blank. Invalid codes (e.g. 'ZZ')
+          are preserved for downstream validation.
+
+      - name: aum_usd
+        description: >
+          Assets under management in USD, cast to DECIMAL(18,2).
+          NULL when the raw value was NULL, blank, or 'N/A'.
+
+      - name: onboarded_date
+        description: >
+          Date the account was onboarded, parsed from MM/DD/YYYY to DATE.
+          NULL when the raw value was NULL or blank.
+
+      - name: status
+        description: >
+          Current operational status of the account.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Active
+                - Closed
+                - Dormant
+
+      - name: sector_focus
+        description: >
+          Primary sector the account operates in.
+        tests:
+          - accepted_values:
+              values:
+                - Public Finance
+                - Equity Capital Markets
+                - Asset Management
+
+      - name: loaded_at
+        description: >
+          Timestamp of when the record was last written to the source system,
+          cast from the ISO 8601 string to TIMESTAMP. Renamed from 'timestamp'
+          to avoid collision with the Redshift reserved word.
+        tests:
+          - not_null

@@ -1,24 +1,85 @@
+# =============================================================================
+# dbt_project.yml
+#
+# Purpose : Root project configuration for the brighthive_prod_test dbt
+#           project.  Updated to support the student graduation score weekly
+#           pipeline (SSIS migration) with:
+#             • packages block referencing dbt_utils and dbt_expectations
+#               (required for composite-key uniqueness tests and score-range
+#               tests in the staging and mart schema.yml files)
+#             • vars block defining student_scores_lookback_days — controls
+#               the incremental lookback window in the mart model
+#             • model config block extended with tags for the new models
+#
+# Warehouse : Redshift
+# =============================================================================
+
 name: 'brighthive_prod_test'
 version: '1.0.0'
 config-version: 2
 
 profile: 'brighthive_prod_test'
 
-model-paths: ['models']
+model-paths:    ['models']
 analysis-paths: ['analyses']
-test-paths: ['tests']
-seed-paths: ['seeds']
-macro-paths: ['macros']
+test-paths:     ['tests']
+seed-paths:     ['seeds']
+macro-paths:    ['macros']
 snapshot-paths: ['snapshots']
 
-target-path: 'target'
+target-path:  'target'
 clean-targets:
   - 'target'
   - 'dbt_packages'
 
+# =============================================================================
+# Package dependencies
+# Install with: dbt deps
+#
+# dbt_utils        — provides unique_combination_of_columns test used in
+#                    staging and mart schema.yml files.
+# dbt_expectations — provides expect_column_values_to_be_between test used
+#                    to enforce score range [0, 100] in staging and mart.
+# =============================================================================
+packages:
+  - package: dbt-labs/dbt_utils
+    version: [">=1.0.0", "<2.0.0"]
+  - package: calogica/dbt_expectations
+    version: [">=0.10.0", "<1.0.0"]
+
+# =============================================================================
+# Project variables
+#
+# student_scores_lookback_days:
+#   Number of days before the current max(week_ending_date) in the mart that
+#   the incremental model re-processes on each run.  Default 7 (one week)
+#   provides a correction window for late-arriving score amendments.
+#   Override at run time with: dbt run --vars '{"student_scores_lookback_days": 14}'
+# =============================================================================
+vars:
+  student_scores_lookback_days: 7
+
+# =============================================================================
+# Model configurations
+# =============================================================================
 models:
   brighthive_prod_test:
+
+    # -------------------------------------------------------------------------
+    # Staging layer — all models materialised as views by default.
+    # Views are cheap to recompute and keep the staging layer lightweight.
+    # -------------------------------------------------------------------------
     staging:
       +materialized: view
+      +tags:
+        - staging
+
+    # -------------------------------------------------------------------------
+    # Marts layer — all models materialised as tables by default.
+    # The student_graduation_score_subject_weekly model overrides this to
+    # 'incremental' in its own config() block.
+    # -------------------------------------------------------------------------
     marts:
       +materialized: table
+      +tags:
+        - marts

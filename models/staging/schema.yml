@@ -1,0 +1,286 @@
+-- =============================================================================
+-- models/staging/schema.yml
+--
+-- Purpose : dbt test definitions for all staging models in this directory.
+--           Covers the new stg_student_scores_raw model as well as the
+--           pre-existing stg_il_test_client_accounts model (preserved
+--           verbatim from stg_il_test_client_accounts.yml so that both
+--           staging models are documented in one canonical schema file).
+--
+--           Tests applied to stg_student_scores_raw address every gap
+--           identified in the SSIS package audit:
+--             • not_null on all key columns (gap #2 in SSIS)
+--             • accepted_values for state (2-char US abbreviations)
+--             • dbt_expectations range check for score [0, 100] (gap #1)
+--             • unique composite key test (gap #3 — dedup guard)
+--
+-- Packages required:
+--   - dbt-labs/dbt_utils          (unique_combination_of_columns)
+--   - calogica/dbt_expectations   (expect_column_values_to_be_between)
+--
+-- Warehouse : Redshift
+-- =============================================================================
+
+version: 2
+
+models:
+
+  # ---------------------------------------------------------------------------
+  # stg_student_scores_raw
+  # ---------------------------------------------------------------------------
+  - name: stg_student_scores_raw
+    description: >
+      Staged and cleaned version of the raw weekly student assessment CSV data.
+      Applies TRIM and blank-to-NULL coercion on all key string columns,
+      casts week_ending_date from VARCHAR to DATE, safely casts score from
+      VARCHAR to FLOAT8, and passes the numeric score through the
+      validate_score macro which NULLs out any value outside [0, 100].
+      Adds a score_out_of_range_flag BOOLEAN column and audit columns
+      load_at (TIMESTAMP) and load_source (VARCHAR).
+      One row per raw source row; no deduplication at this layer.
+      Materialised as a view.
+    config:
+      tags:
+        - staging
+        - student_scores
+        - education
+    columns:
+
+      - name: student_id
+        description: >
+          Unique identifier for the student, trimmed and NULL-coerced from
+          the raw VARCHAR(20) source column.
+        tests:
+          - not_null
+
+      - name: school_id
+        description: >
+          Identifier for the school the student attends, trimmed and
+          NULL-coerced from the raw VARCHAR(20) source column.
+        tests:
+          - not_null
+
+      - name: state
+        description: >
+          Two-character US state abbreviation, upper-cased and trimmed.
+          NULL when the raw value was blank.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - AL
+                - AK
+                - AZ
+                - AR
+                - CA
+                - CO
+                - CT
+                - DE
+                - FL
+                - GA
+                - HI
+                - ID
+                - IL
+                - IN
+                - IA
+                - KS
+                - KY
+                - LA
+                - ME
+                - MD
+                - MA
+                - MI
+                - MN
+                - MS
+                - MO
+                - MT
+                - NE
+                - NV
+                - NH
+                - NJ
+                - NM
+                - NY
+                - NC
+                - ND
+                - OH
+                - OK
+                - OR
+                - PA
+                - RI
+                - SC
+                - SD
+                - TN
+                - TX
+                - UT
+                - VT
+                - VA
+                - WA
+                - WV
+                - WI
+                - WY
+                - DC
+
+      - name: subject
+        description: >
+          Academic subject assessed (e.g. Math, Reading, Science), trimmed
+          and NULL-coerced from the raw VARCHAR(30) source column.
+        tests:
+          - not_null
+
+      - name: week_ending_date
+        description: >
+          The last day of the assessment week, cast from VARCHAR to DATE.
+          NULL when the raw value was blank or NULL.
+        tests:
+          - not_null
+
+      - name: score_raw
+        description: >
+          The raw numeric score cast from VARCHAR to FLOAT8 before range
+          validation.  NULL when the source string was blank, NULL, or
+          non-numeric.  Preserved for audit purposes so that out-of-range
+          values can be inspected alongside the validated score column.
+
+      - name: score
+        description: >
+          Validated assessment score in the range [0, 100].  NULL when the
+          raw value was out of range (e.g. 943, -5), blank, NULL, or
+          non-numeric.  Produced by the validate_score macro.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+              # Only test non-NULL values; not_null is a separate test
+              row_condition: "score is not null"
+
+      - name: score_out_of_range_flag
+        description: >
+          TRUE when the raw numeric score existed but fell outside [0, 100].
+          FALSE when the score was valid or when the raw value was
+          blank/NULL/non-numeric.  Used by data-quality dashboards to surface
+          quarantined rows without discarding them from the audit trail.
+        tests:
+          - not_null
+
+      - name: load_at
+        description: >
+          Wall-clock TIMESTAMP of when this dbt run materialised the row.
+          Audit column absent from the original SSIS package.
+        tests:
+          - not_null
+
+      - name: load_source
+        description: >
+          String identifier for the pipeline that produced the record.
+          Always 'student_scores_weekly_csv' for this source.
+          Audit column absent from the original SSIS package.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - student_scores_weekly_csv
+
+    tests:
+      # Composite uniqueness guard — catches duplicates that the SSIS package
+      # would have silently inserted.  The mart model deduplicates on merge,
+      # but this test ensures the staging view itself surfaces any upstream
+      # duplicates for investigation.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - student_id
+            - school_id
+            - week_ending_date
+            - subject
+
+  # ---------------------------------------------------------------------------
+  # stg_il_test_client_accounts  (pre-existing model — tests preserved)
+  # ---------------------------------------------------------------------------
+  - name: stg_il_test_client_accounts
+    description: >
+      Staged and cleaned version of the raw il_test_client_accounts source
+      table.  Applies TRIM to string fields, normalises account_type casing
+      to title-case, coerces 'TBD' and blank relationship_manager values to
+      NULL, safely casts aum_usd to DECIMAL(18,2) (treating 'N/A' as NULL),
+      parses onboarded_date from MM/DD/YYYY to DATE, and casts the ISO 8601
+      timestamp string to TIMESTAMP.  One row per account_id.
+      Materialised as a view.
+    config:
+      tags:
+        - staging
+        - accounts
+        - il_test
+    columns:
+
+      - name: account_id
+        description: >
+          Unique account identifier in the format LC-ACC-XXXXX.
+          Primary key for this staging model.
+        tests:
+          - not_null
+          - unique
+
+      - name: account_name
+        description: >
+          Legal or trading name of the client account, with leading/trailing
+          whitespace removed.
+        tests:
+          - not_null
+
+      - name: account_type
+        description: >
+          Account classification normalised to title-case.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Municipal
+                - Corporate
+                - Institutional
+
+      - name: relationship_manager
+        description: >
+          Name of the assigned relationship manager.  NULL when the raw value
+          was NULL, blank, or the sentinel string 'TBD'.
+
+      - name: state
+        description: >
+          US state abbreviation for the account's primary location.
+          NULL when the raw value was NULL or blank.
+
+      - name: aum_usd
+        description: >
+          Assets under management in USD, cast to DECIMAL(18,2).
+          NULL when the raw value was NULL, blank, or 'N/A'.
+
+      - name: onboarded_date
+        description: >
+          Date the account was onboarded, parsed from MM/DD/YYYY to DATE.
+          NULL when the raw value was NULL or blank.
+
+      - name: status
+        description: >
+          Current operational status of the account.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Active
+                - Closed
+                - Dormant
+
+      - name: sector_focus
+        description: >
+          Primary sector the account operates in.
+        tests:
+          - accepted_values:
+              values:
+                - Public Finance
+                - Equity Capital Markets
+                - Asset Management
+
+      - name: loaded_at
+        description: >
+          Timestamp of when the record was last written to the source system,
+          cast from the ISO 8601 string to TIMESTAMP.
+        tests:
+          - not_null

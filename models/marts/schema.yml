@@ -1,6 +1,126 @@
+-- =============================================================================
+-- models/marts/schema.yml
+--
+-- Purpose : dbt test definitions for all mart models in this directory.
+--           Covers the new student_graduation_score_subject_weekly incremental
+--           model as well as the pre-existing accounts_with_risk_level model
+--           (tests preserved verbatim from the original schema.yml).
+--
+-- Warehouse : Redshift
+-- =============================================================================
+
 version: 2
 
 models:
+
+  # ---------------------------------------------------------------------------
+  # student_graduation_score_subject_weekly
+  # ---------------------------------------------------------------------------
+  - name: student_graduation_score_subject_weekly
+    description: >
+      Production mart table containing validated weekly student assessment
+      scores.  Replicates and improves upon the SSIS package destination table
+      dbo.student_graduation_score_subject_weekly with the following additions:
+        • Idempotent UPSERT via incremental merge on the composite key
+          (student_id, school_id, week_ending_date, subject).
+        • Rows with NULL key columns or out-of-range scores are excluded.
+        • Audit columns load_at (TIMESTAMP) and load_source (VARCHAR) provide
+          full provenance absent from the original SSIS load.
+      Grain: one row per (student_id, school_id, week_ending_date, subject).
+      Materialised as an incremental table with merge strategy.
+    config:
+      tags:
+        - marts
+        - student_scores
+        - education
+        - incremental
+    columns:
+
+      - name: student_id
+        description: >
+          Unique identifier for the student.  VARCHAR(20).
+          Part of the composite primary key.
+        tests:
+          - not_null
+
+      - name: school_id
+        description: >
+          Identifier for the school the student attends.  VARCHAR(20).
+          Part of the composite primary key.
+        tests:
+          - not_null
+
+      - name: state
+        description: >
+          Two-character US state abbreviation, upper-cased.
+          Not part of the unique key but required to be non-null.
+        tests:
+          - not_null
+
+      - name: subject
+        description: >
+          Academic subject assessed (e.g. Math, Reading, Science).
+          VARCHAR(30).  Part of the composite primary key.
+        tests:
+          - not_null
+
+      - name: week_ending_date
+        description: >
+          The last day of the assessment week.  DATE.
+          Part of the composite primary key.
+        tests:
+          - not_null
+
+      - name: score
+        description: >
+          Validated assessment score in the range [0, 100].  FLOAT8.
+          NULL rows are excluded from this mart; all values here are valid.
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+      - name: score_out_of_range_flag
+        description: >
+          BOOLEAN flag carried forward from the staging layer.  Always FALSE
+          in this mart because rows with out-of-range scores are excluded
+          before insertion.  Retained for schema consistency.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [false]
+
+      - name: load_at
+        description: >
+          Wall-clock TIMESTAMP of when the dbt run that produced this row
+          completed.  Audit column absent from the original SSIS package.
+        tests:
+          - not_null
+
+      - name: load_source
+        description: >
+          String identifier for the pipeline that produced the record.
+          Always 'student_scores_weekly_csv' for this source.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - student_scores_weekly_csv
+
+    tests:
+      # Composite primary key uniqueness — the incremental merge guarantees
+      # this at write time, but the test provides an explicit post-run guard.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - student_id
+            - school_id
+            - week_ending_date
+            - subject
+
+  # ---------------------------------------------------------------------------
+  # accounts_with_risk_level  (pre-existing model — tests preserved)
+  # ---------------------------------------------------------------------------
   - name: accounts_with_risk_level
     description: >-
       Enriches raw account records with a derived risk classification

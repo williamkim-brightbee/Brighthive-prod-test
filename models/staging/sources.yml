@@ -1,0 +1,69 @@
+version: 2
+
+sources:
+  # ---------------------------------------------------------------------------
+  # raw_assessment — Student assessment feed
+  # ---------------------------------------------------------------------------
+  # This source represents the raw student scores table that was previously
+  # populated by the SSIS package "Load_StudentScores_Weekly" reading from
+  # the flat-file drop at \\eddata-fileserver\assessment-drops\student_scores_weekly.csv
+  # and bulk-inserting into dbo.student_graduation_score_subject_weekly.
+  #
+  # In the migrated dbt architecture, this Redshift external table is the
+  # equivalent raw/landing layer — the SSIS load step is replaced by the
+  # ingestion pipeline that populates sample_students.
+  # ---------------------------------------------------------------------------
+  - name: raw_assessment
+    database: "workspace-database"
+    schema: database_128245155604
+    description: >
+      Raw student assessment data sourced from the national weekly assessment
+      feed. Previously loaded via SSIS package Load_StudentScores_Weekly from
+      a flat-file CSV drop. Contains one row per student per week with subject
+      scores for math, english, and science.
+    freshness:
+      warn_after:
+        count: 7
+        period: day
+      error_after:
+        count: 14
+        period: day
+    loaded_at_field: timestamp
+    tables:
+      - name: sample_students
+        description: >
+          Raw student scores table. Each row represents a single student's
+          weekly assessment record. Subject scores (math, english, science)
+          are stored in wide format as integer columns. The timestamp column
+          records when the record was written to the source system.
+        columns:
+          - name: student_id
+            description: >
+              Unique identifier for the student (VARCHAR 256). Maps to the
+              SSIS output column student_id (WSTR length 20).
+          - name: student_name
+            description: Full name of the student.
+          - name: classroom
+            description: >
+              Classroom identifier (integer). Serves as a proxy for school/
+              section grouping in the absence of a dedicated school_id column.
+          - name: week_start_date
+            description: >
+              Start date of the assessment week stored as VARCHAR in the source.
+              Cast to DATE in the staging model. Maps to the SSIS week_ending_date
+              column (offset by 6 days; treated as week anchor date here).
+          - name: math
+            description: >
+              Raw math score (integer 0–100). SSIS had no range validation;
+              the staging model enforces BETWEEN 0 AND 100 and casts to
+              DECIMAL(6,2) to close that gap.
+          - name: english
+            description: >
+              Raw English score (integer 0–100). Same validation rules as math.
+          - name: science
+            description: >
+              Raw science score (integer 0–100). Same validation rules as math.
+          - name: timestamp
+            description: >
+              ISO 8601 timestamp string recording when the row was written to
+              the source system. Used as the freshness loaded_at_field.

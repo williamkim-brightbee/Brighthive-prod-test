@@ -1,0 +1,100 @@
+version: 2
+
+models:
+  - name: stg_student_scores_weekly
+    description: >
+      Staged and cleaned version of the raw student assessment feed
+      (source: raw_assessment.sample_students). Applies score range
+      validation (0–100) and DECIMAL(6,2) casting to close the known
+      SSIS gap where no data-type or range validation was configured on
+      the OLE DB Destination. Parses week_start_date from VARCHAR to DATE
+      and renames timestamp to loaded_at. One row per student per week.
+      Materialised as a view.
+    config:
+      tags:
+        - staging
+        - student_scores
+        - assessment
+    columns:
+
+      - name: student_id
+        description: >
+          Unique identifier for the student. Primary key for this staging
+          model (combined with week_start_date for full uniqueness).
+        tests:
+          - not_null
+
+      - name: student_name
+        description: Full name of the student, whitespace-trimmed.
+        tests:
+          - not_null
+
+      - name: classroom_id
+        description: >
+          Classroom / section identifier. Serves as a school-level grouping
+          key in the absence of a dedicated school_id column in the source.
+        tests:
+          - not_null
+
+      - name: week_start_date
+        description: >
+          Start date of the assessment week, cast from VARCHAR to DATE.
+          Maps to the SSIS output column week_ending_date (DBDATE).
+        tests:
+          - not_null
+
+      - name: math_score
+        description: >
+          Math assessment score cast to DECIMAL(6,2). Only rows with a
+          raw value between 0 and 100 (inclusive) reach this model;
+          out-of-range values are excluded by the staging WHERE clause.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+              # This test directly addresses the known SSIS gap:
+              # the OLE DB Destination had no range validation configured.
+
+      - name: english_score
+        description: >
+          English assessment score cast to DECIMAL(6,2). Same range
+          validation as math_score.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+
+      - name: science_score
+        description: >
+          Science assessment score cast to DECIMAL(6,2). Same range
+          validation as math_score.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+
+      - name: avg_score
+        description: >
+          Average of math, english, and science scores, computed as
+          (math + english + science) / 3.0, cast to DECIMAL(6,2).
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+
+      - name: loaded_at
+        description: >
+          Timestamp of when the record was written to the source system,
+          cast from the VARCHAR ISO 8601 string to TIMESTAMP. Renamed
+          from 'timestamp' to avoid collision with the Redshift reserved word.
+
+      - name: dbt_loaded_at
+        description: >
+          Audit timestamp: the moment this dbt model last processed the row
+          (current_timestamp at model execution time).
+        tests:
+          - not_null

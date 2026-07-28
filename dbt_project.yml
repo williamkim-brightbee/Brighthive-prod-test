@@ -1,8 +1,8 @@
-name: 'brighthive_prod_test'
+name: 'student_scores'
 version: '1.0.0'
 config-version: 2
 
-profile: 'brighthive_prod_test'
+profile: 'loopcapital'
 
 model-paths: ['models']
 analysis-paths: ['analyses']
@@ -17,8 +17,14 @@ clean-targets:
   - 'dbt_packages'
 
 models:
-  brighthive_prod_test:
+  student_scores:
     staging:
       +materialized: view
+      +tags:
+        - staging
+        - student_scores
     marts:
       +materialized: table
+      +tags:
+        - marts
+        - student_scores

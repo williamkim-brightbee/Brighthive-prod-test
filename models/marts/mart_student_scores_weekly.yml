@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: mart_student_scores_weekly
+    description: >
+      Final analytical table for the national monthly student scores data product.
+      Materialised as a table from stg_student_scores_weekly. Adds letter-grade
+      score bands (A/B/C/D/F) and passing flags (score >= 60) for each subject
+      (math, english, science) and the overall average. One row per student per
+      week. This model is the primary consumer-facing table for dashboards and
+      reports tracking student performance trends at the national level.
+
+      SSIS migration context: replaces downstream reporting queries that read
+      from dbo.student_graduation_score_subject_weekly in LoopCapitalAM SQL Server.
+    config:
+      tags:
+        - marts
+        - student_scores
+        - assessment
+        - national-monthly
+    columns:
+
+      - name: student_id
+        description: Unique identifier for the student.
+        tests:
+          - not_null
+
+      - name: student_name
+        description: Full name of the student, whitespace-trimmed.
+        tests:
+          - not_null
+
+      - name: classroom_id
+        description: >
+          Classroom / section identifier used as a school-level grouping key.
+        tests:
+          - not_null
+
+      - name: week_start_date
+        description: Start date of the assessment week (DATE).
+        tests:
+          - not_null
+
+      - name: math_score
+        description: Math assessment score (DECIMAL 6,2), validated 0–100.
+        tests:
+          - not_null
+
+      - name: english_score
+        description: English assessment score (DECIMAL 6,2), validated 0–100.
+        tests:
+          - not_null
+
+      - name: science_score
+        description: Science assessment score (DECIMAL 6,2), validated 0–100.
+        tests:
+          - not_null
+
+      - name: avg_score
+        description: >
+          Average of math, english, and science scores (DECIMAL 6,2).
+          Computed as (math + english + science) / 3.0.
+        tests:
+          - not_null
+
+      - name: math_score_band
+        description: >
+          Letter-grade band for math_score.
+          A: >=90 | B: >=80 | C: >=70 | D: >=60 | F: <60
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['A', 'B', 'C', 'D', 'F']
+
+      - name: english_score_band
+        description: >
+          Letter-grade band for english_score.
+          A: >=90 | B: >=80 | C: >=70 | D: >=60 | F: <60
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['A', 'B', 'C', 'D', 'F']
+
+      - name: science_score_band
+        description: >
+          Letter-grade band for science_score.
+          A: >=90 | B: >=80 | C: >=70 | D: >=60 | F: <60
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['A', 'B', 'C', 'D', 'F']
+
+      - name: overall_score_band
+        description: >
+          Letter-grade band for avg_score (overall performance).
+          A: >=90 | B: >=80 | C: >=70 | D: >=60 | F: <60
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['A', 'B', 'C', 'D', 'F']
+
+      - name: is_math_passing
+        description: TRUE when math_score >= 60 (passing threshold).
+        tests:
+          - not_null
+
+      - name: is_english_passing
+        description: TRUE when english_score >= 60 (passing threshold).
+        tests:
+          - not_null
+
+      - name: is_science_passing
+        description: TRUE when science_score >= 60 (passing threshold).
+        tests:
+          - not_null
+
+      - name: is_overall_passing
+        description: TRUE when avg_score >= 60 (passing threshold).
+        tests:
+          - not_null
+
+      - name: loaded_at
+        description: >
+          Timestamp of when the record was written to the source system.
+          Propagated from the staging model.
+
+      - name: dbt_loaded_at
+        description: >
+          Audit timestamp: the moment the staging dbt model last processed
+          the row (current_timestamp at staging model execution time).
+        tests:
+          - not_null

@@ -1,0 +1,40 @@
+# =============================================================================
+# profiles.yml — LoopCapital dbt Connection Profile
+# =============================================================================
+# This file is a REFERENCE TEMPLATE only. Do NOT commit real credentials.
+# Copy to ~/.dbt/profiles.yml on each developer machine and fill in real values.
+#
+# Password is read from the environment variable DBT_REDSHIFT_PASSWORD.
+# Set it before running dbt:
+#   export DBT_REDSHIFT_PASSWORD='your_password_here'
+# =============================================================================
+
+loopcapital:
+  target: dev
+  outputs:
+
+    dev:
+      type: redshift
+      host: "<your-redshift-cluster-endpoint>"   # e.g. my-cluster.abc123.us-east-1.redshift.amazonaws.com
+      port: 5439
+      dbname: "workspace-database"               # Redshift database name
+      schema: "dbt_dev"                           # Developer-specific schema; override per user
+      user: "<your-redshift-username>"
+      password: "{{ env_var('DBT_REDSHIFT_PASSWORD') }}"
+      threads: 4
+      keepalives_idle: 240
+      connect_timeout: 10
+      ra3_node: true                              # Set true for RA3 node types (enables cross-database queries)
+
+    prod:
+      type: redshift
+      host: "<your-redshift-cluster-endpoint>"
+      port: 5439
+      dbname: "workspace-database"
+      schema: "database_128245155604_dbt"         # Production output schema
+      user: "<your-redshift-prod-username>"
+      password: "{{ env_var('DBT_REDSHIFT_PASSWORD') }}"
+      threads: 8
+      keepalives_idle: 240
+      connect_timeout: 10
+      ra3_node: true

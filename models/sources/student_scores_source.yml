@@ -1,0 +1,67 @@
+-- =============================================================================
+-- models/sources/student_scores_source.yml
+--
+-- Purpose : Registers the raw student assessment data as a dbt source so
+--           that all downstream models reference it via {{ source(...) }}
+--           rather than hard-coded table names.  This mirrors the pattern
+--           used by il_test_client_accounts_source.yml in this project.
+--
+--           The underlying table is the Redshift landing zone for the weekly
+--           CSV file that was previously loaded by the SSIS package into
+--           dbo.student_graduation_score_subject_weekly.  In Redshift the
+--           equivalent raw staging table is named
+--           student_scores_weekly (schema: database_128245155604).
+--
+-- Source  : Redshift — workspace-database.database_128245155604
+-- Loaded  : Weekly CSV ingest (replaces SSIS flat-file load)
+-- =============================================================================
+
+version: 2
+
+sources:
+  - name: student_scores_src
+    database: "workspace-database"
+    schema: database_128245155604
+    description: >
+      Raw weekly student assessment data sourced from the workspace Redshift
+      database.  This table is the Redshift landing zone for the
+      student_scores_weekly.csv file that was previously loaded by the SSIS
+      package.  All columns arrive as VARCHAR and require type casting,
+      null-handling, and score-range validation in the staging layer before
+      analytical use.
+    tables:
+      - name: student_scores_weekly
+        description: >
+          Raw weekly student assessment scores.  One row per
+          (student_id, school_id, state, subject, week_ending_date) combination
+          as delivered by the upstream CSV ingest.  No deduplication or
+          validation is applied at this layer.
+        columns:
+          - name: student_id
+            description: >
+              Unique identifier for the student.  VARCHAR(20) in the source
+              CSV.  Must not be NULL in valid records.
+          - name: school_id
+            description: >
+              Identifier for the school the student attends.  VARCHAR(20).
+              Must not be NULL in valid records.
+          - name: state
+            description: >
+              Two-character US state abbreviation (e.g. IL, CA, TX).
+              VARCHAR(2) in the source CSV.
+          - name: subject
+            description: >
+              Academic subject assessed (e.g. Math, Reading, Science).
+              VARCHAR(30) in the source CSV.
+          - name: week_ending_date
+            description: >
+              The Saturday (or last day) of the assessment week.
+              Stored as a date string in the source CSV; cast to DATE in
+              the staging model.
+          - name: score
+            description: >
+              Raw assessment score as delivered by the source system.
+              Stored as a numeric string; cast to FLOAT8 in staging.
+              Values outside [0, 100] are treated as data-entry errors
+              (e.g. 943 instead of 94.3) and are NULLed out by the
+              validate_score macro.
